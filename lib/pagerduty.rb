@@ -11,7 +11,7 @@ class Pagerduty
   end
 
   def pagerduty_url
-    "https://#{@config['account_name']}.pagerduty.com"
+    "https://api.pagerduty.com"
   end
 
   def request(endpoint)
@@ -22,7 +22,7 @@ class Pagerduty
       # Some endpoints have query strings already.  Detect this, and add onto the query string
       # if it exists, or otherwise create one
       char = endpoint.include?('?') ? '&' : '?'
-      endpoint = "#{endpoint}#{char}sort_by=created_on:desc&offset=#{pagination_offset}"
+      endpoint = "#{endpoint}#{char}sort_by=created_at:desc&offset=#{pagination_offset}"
       response = HTTParty.get(
         endpoint,
         :headers => {
@@ -42,21 +42,17 @@ class Pagerduty
   def incidents(start_date, finish_date = nil)
     finish_clause     = finish_date ? "&until=#{finish_date}" : ''
     time_zone = @config['time_zone']
-    endpoint  = "#{pagerduty_url}/api/v1/incidents?since=#{start_date}#{finish_clause}&time_zone=#{time_zone}"
+    endpoint  = "#{pagerduty_url}/incidents?since=#{start_date}#{finish_clause}&time_zone=#{time_zone}"
     response  = request(endpoint)
     incidents = response.map do |incident|
       tmp = {
         :id           => incident['id'],
-        :created_on   => incident['created_on'],
-        :description  => incident['trigger_summary_data']['description'],
+        :created_on   => incident['created_at'],
+        :description  => incident['description'],
         :incident_key => incident['incident_key'],
-        :input_type   => incident['service']['name'],
+        :input_type   => incident['service']['summary'],
         :category     => 'not set'
       }
-      if incident['trigger_summary_data']['description'].nil?
-        # some alerts don't have a description (e.g.: website pulse), fall back on subject and service name
-        tmp[:description] = "#{incident['service']['name']}: #{incident['trigger_summary_data']['subject']}"
-      end
       tmp
     end
     add_ack_resolve(incidents)
@@ -65,9 +61,9 @@ class Pagerduty
   def add_ack_resolve(incidents)
     Parallel.each(incidents, :in_threads => 20) do |incident|
       incident_id      = incident[:id]
-      log              = request("#{pagerduty_url}/api/v1/incidents/#{incident_id}/log_entries")
+      log              = request("#{pagerduty_url}/incidents/#{incident_id}/log_entries")
                          .sort_by { |x| x['created_at'] }
-      problem          = log.find { |x| x['type'] == 'trigger' }
+      problem          = log.find { |x| x['type'] == 'trigger_log_entry' }
       problem_time     = Time.parse(problem['created_at'])
       acknowledge_by   = nil
       time_to_ack      = nil
