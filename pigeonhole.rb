@@ -67,7 +67,7 @@ get '/' do
   @types = %w(ack resolve)
   @stats = %w(mean stddev 95_percentile)
   @stat_summary = influxdb.generate_stats
-  @pagerduty_url = pagerduty.pagerduty_url
+  @pagerduty_url = pagerduty.our_pagerduty_url
   @acked, @unacked = influxdb.unaddressed_alerts
   @acked = parse_incidents(@acked)
   @unacked = parse_incidents(@unacked)
