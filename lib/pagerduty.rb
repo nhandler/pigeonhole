@@ -14,6 +14,10 @@ class Pagerduty
     "https://api.pagerduty.com"
   end
 
+  def our_pagerduty_url
+    "https://#{@config['account_name']}.pagerduty.com"
+  end
+
   def request(endpoint)
     pagination_limit  = 100
     pagination_offset = 0
